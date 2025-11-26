@@ -1,9 +1,7 @@
-// backend/controllers/driverController.js
 const db = require('../db');
 
 const getDriverDetails = async (req, res) => {
     const driverId = req.params.id;
-    // TODO: Add authorization - Ensure the logged-in user IS this driver or an admin.
 
     if (!driverId) {
         return res.status(400).json({ message: 'Driver ID is required.' });
@@ -43,17 +41,14 @@ const getDriverDetails = async (req, res) => {
 };
 
 
-// --- Get Drivers managed by a specific Admin ---
 const getAdminDrivers = async (req, res) => {
     const adminId = req.params.adminId;
-    // TODO: Authorization: Ensure logged-in admin IS adminId
 
     if (!adminId) {
         return res.status(400).json({ message: 'Admin ID is required.' });
     }
 
     try {
-        // Select drivers managed by this admin, include vehicle info and active status
         const query = `
             SELECT
                 d.driver_id,
@@ -78,24 +73,19 @@ const getAdminDrivers = async (req, res) => {
     }
 };
 
-// --- Add a Driver (associated with the calling admin) ---
 const addDriver = async (req, res) => {
     const adminId = req.params.adminId;
     const { name, phone, email, password, vehicle_id } = req.body;
-    // TODO: Authorization: Ensure logged-in admin IS adminId
 
-    // Validation
     if (!name || !phone || !email || !password || !vehicle_id) {
         return res.status(400).json({ message: 'Name, Phone, Email, Password, and Vehicle ID are required.' });
     }
-    // Add regex checks for phone/email
     const phoneRegex = /^[0-9]{10}$/;
     if (!phoneRegex.test(phone)) return res.status(400).json({ message: 'Invalid phone format (10 digits).' });
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(email)) return res.status(400).json({ message: 'Invalid email format.' });
 
     try {
-        // Check uniqueness for email/phone
         const [existing] = await db.query(
             'SELECT driver_id FROM Driver WHERE email = ? OR phone_number = ?',
             [email, phone]
@@ -104,7 +94,6 @@ const addDriver = async (req, res) => {
             return res.status(409).json({ message: 'Driver with this Email or Phone already exists.' });
         }
 
-        // Check if vehicle exists and is unassigned (to an *active* driver)
          const [vehicleCheck] = await db.query(
              `SELECT d.driver_id
               FROM Vehicle v
@@ -120,7 +109,6 @@ const addDriver = async (req, res) => {
          }
 
 
-        // Insert new driver (storing plain password as requested)
         const insertQuery = `
             INSERT INTO Driver (name, phone_number, email, password, vehicle_id, admin_id, is_active)
             VALUES (?, ?, ?, ?, ?, ?, TRUE)
@@ -144,13 +132,10 @@ const addDriver = async (req, res) => {
     }
 };
 
-// --- Update Driver Details ---
 const updateDriver = async (req, res) => {
     const driverIdToUpdate = req.params.driverId;
     const { name, phone, email, vehicle_id } = req.body;
-    // TODO: Authorization: Ensure logged-in admin can update this driver
 
-    // Validation (Keep as is)
     if (!name || !phone || !email || !vehicle_id) { /* ... */ }
     const phoneRegex = /^[0-9]{10}$/;
     if (!phoneRegex.test(phone)) { /* ... */ }
@@ -158,8 +143,7 @@ const updateDriver = async (req, res) => {
     if (!emailRegex.test(email)) { /* ... */ }
 
     try {
-        // --- Check for active rides BEFORE proceeding ---
-        const activeStatuses = ['payment done', 'request accepted']; // Statuses indicating an ongoing ride
+        const activeStatuses = ['payment done', 'request accepted']; 
         const activeRideCheckQuery = `
             SELECT COUNT(*) as activeRideCount
             FROM Ride
@@ -169,23 +153,18 @@ const updateDriver = async (req, res) => {
 
         if (activeCheck[0].activeRideCount > 0) {
             console.log(`Update failed for driver ${driverIdToUpdate}: Driver has ongoing rides.`);
-            // Use 409 Conflict as the state prevents the desired action
             return res.status(409).json({ message: 'Cannot update driver details while they have an ongoing ride.' });
         }
-        // --- END ACTIVE RIDE CHECK ---
 
 
-        // 1. Check for Uniqueness Conflicts (against OTHER drivers - Keep as is)
         const [existing] = await db.query( /* ... uniqueness query ... */ );
         if (existing.length > 0) { /* ... handle conflict ... */ }
 
-        // 2. Check if the NEW vehicle is available (Keep as is)
          const [vehicleCheck] = await db.query( /* ... vehicle availability query ... */ );
          if (vehicleCheck.length === 0) { /* ... handle vehicle not found ... */ }
          if (vehicleCheck[0].driver_id !== null && vehicleCheck[0].driver_id != driverIdToUpdate) { /* ... handle vehicle assigned to other driver ... */ }
 
 
-        // 3. Update the driver record (only if no active rides and checks pass)
         const updateQuery = `
             UPDATE Driver SET name = ?, phone_number = ?, email = ?, vehicle_id = ?
             WHERE driver_id = ?
@@ -201,23 +180,20 @@ const updateDriver = async (req, res) => {
 
     } catch (error) {
          console.error(`Error updating driver ${driverIdToUpdate}:`, error);
-         // Keep existing specific error handling (e.g., FK violations)
          if (error.code === 'ER_NO_REFERENCED_ROW_2') { /* ... */ }
          res.status(500).json({ message: 'Internal server error updating driver.' });
     }
 };
 
 
-// ---  Check if a driver has active rides ---
 const checkActiveRides = async (req, res) => {
     const driverId = req.params.driverId;
-    // TODO: Authorization check
 
     if (!driverId) {
         return res.status(400).json({ message: 'Driver ID is required.' });
     }
     try {
-        const activeStatuses = ['payment done', 'request accepted']; // Define statuses preventing deactivation
+        const activeStatuses = ['payment done', 'request accepted']; 
         const query = `
             SELECT COUNT(*) as activeRideCount
             FROM Ride
@@ -234,18 +210,15 @@ const checkActiveRides = async (req, res) => {
 };
 
 
-// --- Deactivate Driver (Soft Delete) ---
 const deactivateDriver = async (req, res) => {
     const driverId = req.params.driverId;
-    // TODO: Authorization check
 
     if (!driverId) {
         return res.status(400).json({ message: 'Driver ID is required.' });
     }
 
-    let connection; // Define connection outside try
+    let connection; 
     try {
-        // Ensure no active rides before proceeding
         const [activeCheck] = await db.query(
             "SELECT COUNT(*) as activeRideCount FROM Ride WHERE driver_id = ? AND ride_status IN ('payment done', 'request accepted')",
             [driverId]
@@ -254,28 +227,26 @@ const deactivateDriver = async (req, res) => {
              return res.status(400).json({ message: 'Cannot deactivate driver with ongoing rides.' });
          }
 
-        // Use a transaction to update both status and vehicle
         connection = await db.getConnection();
         await connection.beginTransaction();
 
-        // Set is_active to FALSE and vehicle_id to NULL
         const updateQuery = 'UPDATE Driver SET is_active = FALSE, vehicle_id = NULL WHERE driver_id = ? AND is_active = TRUE'; // Only deactivate active drivers
         const [result] = await connection.query(updateQuery, [driverId]);
 
         if (result.affectedRows > 0) {
-             await connection.commit(); // Commit transaction
+             await connection.commit(); 
              console.log(`Driver ID: ${driverId} deactivated and unassigned from vehicle.`);
             res.status(200).json({ message: 'Driver deactivated successfully.' });
         } else {
-             await connection.rollback(); // Rollback if driver not found or already inactive
+             await connection.rollback(); 
              res.status(404).json({ message: 'Driver not found or already inactive.' });
         }
     } catch (error) {
          console.error(`Error deactivating driver ${driverId}:`, error);
-         if (connection) await connection.rollback(); // Rollback on error
+         if (connection) await connection.rollback(); 
          res.status(500).json({ message: 'Internal server error deactivating driver.' });
     } finally {
-        if (connection) connection.release(); // Release connection
+        if (connection) connection.release(); 
     }
 };
 
