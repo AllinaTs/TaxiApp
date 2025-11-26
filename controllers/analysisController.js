@@ -1,11 +1,8 @@
-// backend/controllers/analysisController.js
 const db = require('../db');
 
-// --- Get Company-Wide Daily Stats ---
 const getCompanyDailyStats = async (req, res) => {
     const { date } = req.query; // Expecting YYYY-MM-DD
 
-    // TODO: Add Admin Authorization Check
 
     if (!date) {
         return res.status(400).json({ message: 'Date query parameter is required.' });
@@ -15,9 +12,6 @@ const getCompanyDailyStats = async (req, res) => {
     }
 
     try {
-        // Query joins Commission (for date), Ride (for distance/status),
-        // Payment (for amount), and Rating (for score).
-        // Filters by commission date and completed ride status.
         const query = `
             SELECT
                 COUNT(DISTINCT r.ride_id) AS totalRides,
@@ -40,16 +34,14 @@ const getCompanyDailyStats = async (req, res) => {
         `;
         const [results] = await db.query(query, [date]);
 
-        const stats = results[0]; // Aggregate query always returns one row
+        const stats = results[0]; 
 
-        // Calculate average rating safely
         if (stats.ratedRidesCount > 0) {
             stats.averageRating = parseFloat(stats.totalRatingScore) / parseInt(stats.ratedRidesCount, 10);
         } else {
-            stats.averageRating = null; // No ratings for the day
+            stats.averageRating = null; 
         }
 
-        // Ensure correct types
         stats.totalRides = parseInt(stats.totalRides, 10);
         stats.totalDistance = parseFloat(stats.totalDistance);
         stats.totalPaymentAmount = parseFloat(stats.totalPaymentAmount);
@@ -66,11 +58,9 @@ const getCompanyDailyStats = async (req, res) => {
     }
 };
 
-// --- Get Company-Wide Aggregated Data for Graphs ---
 const getCompanyGraphData = async (req, res) => {
     const { mode, year, month } = req.query;
 
-    // TODO: Add Admin Authorization Check
 
     if (!mode) {
         return res.status(400).json({ message: 'Mode is required.' });
@@ -82,29 +72,28 @@ const getCompanyGraphData = async (req, res) => {
     let whereClauses = ["r.ride_status = 'destination reached'", "p.payment_status = 'complete'"];
     let queryParams = [];
 
-    // Determine SELECT, GROUP BY, ORDER BY, and WHERE clauses based on mode
     switch (mode.toLowerCase()) {
         case 'month':
             if (!year || !month) return res.status(400).json({ message: 'Year and Month required.' });
-            timeSelectExpr = "DATE(c.commission_date_time)"; // Select DATE object
-            groupByExpr = "DATE(c.commission_date_time)";   // Group by DATE object
-            orderByExpr = "DATE(c.commission_date_time)";   // Order by DATE object
+            timeSelectExpr = "DATE(c.commission_date_time)"; 
+            groupByExpr = "DATE(c.commission_date_time)";   
+            orderByExpr = "DATE(c.commission_date_time)";   
             whereClauses.push('YEAR(c.commission_date_time) = ?');
             whereClauses.push('MONTH(c.commission_date_time) = ?');
             queryParams.push(year, month);
             break;
         case 'year':
             if (!year) return res.status(400).json({ message: 'Year required.' });
-            timeSelectExpr = "DATE_FORMAT(c.commission_date_time, '%Y-%m')"; // Select YYYY-MM
-            groupByExpr = "DATE_FORMAT(c.commission_date_time, '%Y-%m')";   // Group by YYYY-MM
-            orderByExpr = "DATE_FORMAT(c.commission_date_time, '%Y-%m')";   // Order by YYYY-MM
+            timeSelectExpr = "DATE_FORMAT(c.commission_date_time, '%Y-%m')"; 
+            groupByExpr = "DATE_FORMAT(c.commission_date_time, '%Y-%m')";   
+            orderByExpr = "DATE_FORMAT(c.commission_date_time, '%Y-%m')";   
             whereClauses.push('YEAR(c.commission_date_time) = ?');
             queryParams.push(year);
             break;
         case 'overall':
-            timeSelectExpr = "YEAR(c.commission_date_time)"; // Select YYYY
-            groupByExpr = "YEAR(c.commission_date_time)";   // Group by YYYY
-            orderByExpr = "YEAR(c.commission_date_time)";   // Order by YYYY
+            timeSelectExpr = "YEAR(c.commission_date_time)"; 
+            groupByExpr = "YEAR(c.commission_date_time)";   
+            orderByExpr = "YEAR(c.commission_date_time)";  
             break;
         default:
             return res.status(400).json({ message: 'Invalid mode specified.' });
@@ -114,7 +103,6 @@ const getCompanyGraphData = async (req, res) => {
     const orderByClause = `ORDER BY ${orderByExpr} ASC`;
 
     try {
-        // Query aggregates company-wide data based on commission completion time
         const finalQuery = `
             SELECT
                 ${timeSelectExpr} AS timeLabel,
@@ -134,7 +122,6 @@ const getCompanyGraphData = async (req, res) => {
 
         const [results] = await db.query(finalQuery, queryParams);
 
-        // Process results (format dates, ensure numbers)
         const processedResults = results.map(row => {
             let finalTimeLabel;
             if (typeof row.timeLabel === 'object' && row.timeLabel !== null && row.timeLabel instanceof Date) {
