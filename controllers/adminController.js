@@ -1,16 +1,13 @@
-// backend/controllers/adminController.js
 const db = require('../db');
 
 const getAdminById = async (req, res) => {
     const adminId = req.params.id;
-    // TODO: Add authorization - Ensure logged-in user IS this admin or has super-admin rights.
 
     if (!adminId) {
         return res.status(400).json({ message: 'Admin ID is required.' });
     }
 
     try {
-        // Select relevant admin details (excluding password)
         const query = 'SELECT admin_id, name, email, phone_number FROM Admin WHERE admin_id = ?';
         const [results] = await db.query(query, [adminId]);
 
@@ -28,5 +25,4 @@ const getAdminById = async (req, res) => {
 
 module.exports = {
     getAdminById,
-    // Add other admin controllers later (e.g., addDriver, addVehicle)
 };
